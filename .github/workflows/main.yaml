@@ -59,7 +59,7 @@ jobs:
             REPO_NAME="${GITHUB_REPOSITORY##*/}"
 
             if [ -z "${{ inputs.project_directory }}" ]; then
-              PROJECT_DIR="$REPO_NAME"
+              PROJECT_DIR="/root/$REPO_NAME"
             else
               PROJECT_DIR="${{ inputs.project_directory }}"
             fi
