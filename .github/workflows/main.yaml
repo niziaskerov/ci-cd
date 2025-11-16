@@ -23,7 +23,7 @@ on:
         required: false
       PRIVATE_KEY:
         required: true
-      HOST:
+      PROD_HOST:
         required: true
       USERNAME:
         required: false
@@ -51,7 +51,7 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ steps.env.outputs.env == 'prod' && secrets.HOST || secrets.DEV_HOST }}
+          host: ${{ steps.env.outputs.env == 'prod' && secrets.PROD_HOST || secrets.DEV_HOST }}
           key: ${{ secrets.PRIVATE_KEY }}
           username: ${{ secrets.USERNAME || 'ubuntu' }}
           port: 22
