@@ -1,0 +1,77 @@
+name: Reusable Deploy Workflow
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Environment name (test, prod)"
+        required: true
+        type: string
+
+      branch:
+        description: "Branch to deploy from"
+        required: true
+        type: string
+
+      project_directory:
+        description: "Directory on the server; omitted = use repository name"
+        required: false
+        type: string
+
+      compose_file:
+        description: "Path to docker-compose file; omitted = docker-compose.yml"
+        required: false
+        type: string
+
+    secrets:
+      host:
+        required: true
+      private_key:
+        required: true
+      username:
+        required: false
+
+jobs:
+  deploy:
+    if: github.ref == format('refs/heads/{0}', inputs.branch)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.host }}
+          key: ${{ secrets.private_key }}
+          username: ${{ secrets.username || 'ubuntu' }}
+          port: 22
+          script: |
+            REPO_NAME="${GITHUB_REPOSITORY##*/}"
+
+            if [ -z "${{ inputs.project_directory }}" ]; then
+              PROJECT_DIR="$REPO_NAME"
+            else
+              PROJECT_DIR="${{ inputs.project_directory }}"
+            fi
+
+            if [ -z "${{ inputs.compose_file }}" ]; then
+              COMPOSE_FILE="docker-compose.yml"
+            else
+              COMPOSE_FILE="${{ inputs.compose_file }}"
+            fi
+
+            echo "Project directory: $PROJECT_DIR"
+            echo "Compose file: $COMPOSE_FILE"
+
+            sudo -i bash <<EOF
+
+            cd "$PROJECT_DIR"
+            git pull
+
+            docker-compose -f "$COMPOSE_FILE" down
+            docker-compose -f "$COMPOSE_FILE" up --build -d
+
+            EOF
+
