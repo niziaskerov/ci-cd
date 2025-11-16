@@ -28,13 +28,10 @@ on:
 
 jobs:
   deploy:
-    if: github.ref == format('refs/heads/{0}')
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-
       - name: Deploy via SSH
         uses: appleboy/ssh-action@master
         with:
