@@ -4,40 +4,56 @@ on:
   workflow_call:
     inputs:
       environment:
-        description: "Environment name (test, prod)"
+        description: "Environment name (optional)"
         required: false
         type: string
 
       project_directory:
-        description: "Directory on the server; omitted = use repository name"
+        description: "Directory on the server; omitted = repo name"
         required: false
         type: string
 
       compose_file:
-        description: "Path to docker-compose file; omitted = docker-compose.yml"
+        description: "Path to docker-compose file; default docker-compose.yml"
         required: false
         type: string
 
     secrets:
-      host:
+      DEV_HOST:
+        required: false
+      PRIVATE_KEY:
         required: true
-      private_key:
+      HOST:
         required: true
-      username:
+      USERNAME:
         required: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
+      - name: Determine environment from branch
+        id: env
+        run: |
+          if [[ "${GITHUB_REF##*/}" == "dev" ]]; then
+            echo "env=dev" >> $GITHUB_OUTPUT
+          elif [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            echo "env=prod" >> $GITHUB_OUTPUT
+          else
+            echo "Unsupported branch: ${GITHUB_REF##*/}"
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v3
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.host }}
-          key: ${{ secrets.private_key }}
-          username: ${{ secrets.username || 'ubuntu' }}
+          host: ${{ steps.env.outputs.env == 'prod' && secrets.HOST || secrets.DEV_HOST }}
+          key: ${{ secrets.PRIVATE_KEY }}
+          username: ${{ secrets.USERNAME || 'ubuntu' }}
           port: 22
           script: |
             REPO_NAME="${GITHUB_REPOSITORY##*/}"
@@ -54,16 +70,14 @@ jobs:
               COMPOSE_FILE="${{ inputs.compose_file }}"
             fi
 
+            echo "Branch Env: ${{ steps.env.outputs.env }}"
             echo "Project directory: $PROJECT_DIR"
             echo "Compose file: $COMPOSE_FILE"
 
             sudo -i bash <<EOF
-
             cd "$PROJECT_DIR"
             git pull
 
             docker-compose -f "$COMPOSE_FILE" down
             docker-compose -f "$COMPOSE_FILE" up --build -d
-
             EOF
-
