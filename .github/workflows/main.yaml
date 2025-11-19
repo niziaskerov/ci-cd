@@ -76,7 +76,7 @@ jobs:
 
             sudo -i bash <<EOF
             cd "$PROJECT_DIR"
-            git checkout -f ${{ steps.env.outputs.env }}"
+            git checkout -f "${GITHUB_REF##*/}"
             git pull
 
             docker-compose -f "$COMPOSE_FILE" down
