@@ -86,9 +86,11 @@ jobs:
             git checkout -f ${{ steps.env.outputs.branch }}
             git pull
 
-            echo "Building & restarting containers safely..."
-            docker-compose -f "$COMPOSE_FILE" up -d --build --force-recreate
 
-            echo "Running containers:"
+            docker-compose -f "$COMPOSE_FILE" down
+            docker-compose -f "$COMPOSE_FILE" up --build -d || docker-compose -f "$COMPOSE_FILE" up -d
+
+
+            echo "Currently running containers:"
             docker-compose -f "$COMPOSE_FILE" ps
             EOF
