@@ -78,7 +78,6 @@ jobs:
             echo "Compose file: $COMPOSE_FILE"
 
             sudo -i bash <<EOF
-            set -euo pipefail
 
             cd "$PROJECT_DIR"
 
@@ -90,9 +89,7 @@ jobs:
             docker-compose -f "$COMPOSE_FILE" down
             docker-compose -f "$COMPOSE_FILE" up --build -d || docker-compose -f "$COMPOSE_FILE" up -d
 
-            echo "Fetching last 80 lines of logs for all services..."
             docker-compose -f "$COMPOSE_FILE" logs --tail=80 --no-color || true
-            echo "---- Logs End ----"
 
 
 
