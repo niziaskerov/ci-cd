@@ -78,10 +78,20 @@ jobs:
             echo "Compose file: $COMPOSE_FILE"
 
             sudo -i bash <<EOF
+            set -euo pipefail
+
             cd "$PROJECT_DIR"
-            git checkout -f ${{ steps.env.outputs.branch }} 
+
+            git fetch --all
+            git checkout -f ${{ steps.env.outputs.branch }}
             git pull
 
-            docker-compose -f "$COMPOSE_FILE" down
-            docker-compose -f "$COMPOSE_FILE" up --build -d
+            echo "Building Docker images..."
+            docker-compose -f "$COMPOSE_FILE" build
+
+            echo "Starting containers..."
+            docker-compose -f "$COMPOSE_FILE" up -d
+
+            echo "Currently running containers:"
+            docker-compose -f "$COMPOSE_FILE" ps
             EOF
