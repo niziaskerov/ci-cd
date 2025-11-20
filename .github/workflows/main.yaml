@@ -86,12 +86,9 @@ jobs:
             git checkout -f ${{ steps.env.outputs.branch }}
             git pull
 
-            echo "Building Docker images..."
-            docker-compose -f "$COMPOSE_FILE" build
+            echo "Building & restarting containers safely..."
+            docker-compose -f "$COMPOSE_FILE" up -d --build --force-recreate
 
-            echo "Starting containers..."
-            docker-compose -f "$COMPOSE_FILE" up -d
-
-            echo "Currently running containers:"
+            echo "Running containers:"
             docker-compose -f "$COMPOSE_FILE" ps
             EOF
