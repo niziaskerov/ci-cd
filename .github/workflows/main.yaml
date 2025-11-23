@@ -85,13 +85,17 @@ jobs:
             git checkout -f ${{ steps.env.outputs.branch }}
             git pull
 
+            echo "Deploying new version..."
+            if ! docker-compose -f "$COMPOSE_FILE" up --build -d; then
+              echo "Deploy failed — restoring previous version"
+              docker-compose -f "$COMPOSE_FILE" up -d
+              exit 1
+            fi
 
-            docker-compose -f "$COMPOSE_FILE" down
-            docker-compose -f "$COMPOSE_FILE" up --build -d || docker-compose -f "$COMPOSE_FILE" up -d
+            sleep 30s
 
+            echo "Showing last 80 lines of logs for all services..."
             docker-compose -f "$COMPOSE_FILE" logs --tail=80 --no-color || true
-
-
 
             echo "Currently running containers:"
             docker-compose -f "$COMPOSE_FILE" ps
