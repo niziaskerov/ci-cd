@@ -85,6 +85,7 @@ jobs:
             git checkout -f ${{ steps.env.outputs.branch }}
             git pull
 
+            docker-compose -f "$COMPOSE_FILE" down
             echo "Deploying new version..."
             if ! docker-compose -f "$COMPOSE_FILE" up --build -d; then
               echo "Deploy failed — restoring previous version"
