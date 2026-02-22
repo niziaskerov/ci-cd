@@ -12,7 +12,10 @@ on:
         required: true
       vite_api_url:
         type: string
-        required: true
+        required: false
+      next_public_api_url:
+        type: string
+        required: false
       node_version:
         type: string
         required: false
@@ -47,6 +50,7 @@ jobs:
         run: npm run build
         env:
           VITE_API_URL: ${{ inputs.vite_api_url }}
+          NEXT_PUBLIC_API_URL: ${{ inputs.next_public_api_url }}
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
