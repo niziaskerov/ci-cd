@@ -60,8 +60,8 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dist
-          path: dist/
+          name: out
+          path: out/
           if-no-files-found: error
           retention-days: 7
 
@@ -89,4 +89,4 @@ jobs:
           fi
 
       - name: Deploy to S3
-        run: aws s3 sync dist/ "s3://${S3_BUCKET}/" --delete
+        run: aws s3 sync out/ "s3://${S3_BUCKET}/" --delete
