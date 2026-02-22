@@ -1,0 +1,89 @@
+name: Deploy to S3
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write   # required for OIDC assume role
+  contents: read    # required for checkout
+  actions: read
+
+env:
+  AWS_REGION: eu-central-1
+  S3_BUCKET: ${{ vars.S3_BUCKET_NAME }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_URL: https://api.tredu.io/api/contact-messages
+
+      # Upload dist as an artifact (downloadable from Actions UI)
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+      # Assume role via OIDC (no long-lived keys)
+      - name: Configure AWS credentials (Assume Role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Validate bucket name
+        run: |
+          if [ -z "${S3_BUCKET}" ]; then
+            echo "S3_BUCKET is empty. Set repo variable: Settings → Secrets and variables → Actions → Variables → S3_BUCKET_NAME"
+            exit 1
+          fi
+
+      - name: Ensure S3 bucket exists
+        run: |
+          set -euo pipefail
+          BUCKET="${S3_BUCKET}"
+          REGION="eu-central-1"
+
+          if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            echo "Bucket exists: $BUCKET"
+          else
+            echo "Bucket does not exist. Creating: $BUCKET in region $REGION"
+            # us-east-1 is special (no LocationConstraint)
+            if [ "$REGION" = "us-east-1" ]; then
+              aws s3api create-bucket --bucket "$BUCKET"
+            else
+              aws s3api create-bucket --bucket "$BUCKET" \
+                --create-bucket-configuration LocationConstraint="$REGION"
+            fi
+
+            # Optional but recommended: block public access by default
+            aws s3api put-public-access-block --bucket "$BUCKET" \
+              --public-access-block-configuration \
+              BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+
+            echo "Bucket created: $BUCKET"
+          fi
+
+      - name: Upload build files to S3
+        run: |
+          aws s3 sync dist/ "s3://${S3_BUCKET}/" --delete
