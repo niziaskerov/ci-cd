@@ -7,19 +7,24 @@ on:
         type: string
         required: false
         default: eu-central-1
+
       s3_bucket:
         type: string
         required: true
+
       vite_api_url:
         type: string
         required: false
+
       next_public_api_url:
         type: string
         required: false
+
       node_version:
         type: string
         required: false
         default: "20"
+
     secrets:
       AWS_ROLE_TO_ASSUME:
         required: true
@@ -64,23 +69,22 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ inputs.aws_region }}
 
       - name: Ensure S3 bucket exists
         run: |
           set -euo pipefail
-          BUCKET="${S3_BUCKET}"
-          REGION="${AWS_REGION}"
 
-          if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
-            echo "Bucket exists: $BUCKET"
+          if aws s3api head-bucket --bucket "$S3_BUCKET" 2>/dev/null; then
+            echo "Bucket exists: $S3_BUCKET"
           else
-            echo "Creating bucket: $BUCKET in $REGION"
-            if [ "$REGION" = "us-east-1" ]; then
-              aws s3api create-bucket --bucket "$BUCKET"
+            echo "Creating bucket: $S3_BUCKET in $AWS_REGION"
+            if [ "$AWS_REGION" = "us-east-1" ]; then
+              aws s3api create-bucket --bucket "$S3_BUCKET"
             else
-              aws s3api create-bucket --bucket "$BUCKET" \
-                --create-bucket-configuration LocationConstraint="$REGION"
+              aws s3api create-bucket \
+                --bucket "$S3_BUCKET" \
+                --create-bucket-configuration LocationConstraint="$AWS_REGION"
             fi
           fi
 
