@@ -52,6 +52,7 @@ jobs:
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@master
+        timeout-minutes: 30
         with:
           host: ${{ steps.env.outputs.env == 'prod' && secrets.PROD_HOST || secrets.DEV_HOST }}
           key: ${{ secrets.PRIVATE_KEY }}
