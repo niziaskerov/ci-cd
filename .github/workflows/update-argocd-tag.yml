@@ -4,20 +4,23 @@ on:
   workflow_call:
     inputs:
       service_name:
+        description: "Service folder name under services/<service_name>"
         required: true
         type: string
 
       image_tag:
-        description: "Commit SHA (or tag) from build job"
+        description: "Image tag (commit SHA) from build workflow"
         required: true
         type: string
 
       argocd_repo:
+        description: "GitOps repo, e.g. org/argocd-config"
         required: false
         type: string
-        default: main
+        default: niziaskerov/argocd
 
       argocd_branch:
+        description: "Branch to push into GitOps repo"
         required: false
         type: string
         default: main
@@ -33,6 +36,9 @@ jobs:
   update:
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+
+    env:
+      ENVIRONMENT: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
 
     steps:
       - name: Checkout GitOps repo
@@ -50,11 +56,10 @@ jobs:
           sudo chmod +x /usr/local/bin/yq
           yq --version
 
-      - name: Update values-(dev|prod).yaml tags for all containers
+      - name: Update values file (dev/prod based on branch)
         env:
           SERVICE: ${{ inputs.service_name }}
           IMAGE_TAG: ${{ inputs.image_tag }}
-          ENVIRONMENT: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
         run: |
           set -euo pipefail
 
@@ -64,33 +69,32 @@ jobs:
             VALUES_FILE="services/${SERVICE}/values-dev.yaml"
           fi
 
-          FULL="gitops/${VALUES_FILE}"
+          FULL_PATH="gitops/${VALUES_FILE}"
 
-          if [ ! -f "$FULL" ]; then
-            echo "ERROR: Values file not found: $FULL"
-            echo "Listing gitops/services/${SERVICE}:"
+          if [ ! -f "$FULL_PATH" ]; then
+            echo "ERROR: File not found -> $FULL_PATH"
+            echo "Available files under services/${SERVICE}:"
             ls -la "gitops/services/${SERVICE}" || true
             exit 1
           fi
 
-          # Fail fast if containers list missing/empty
-          if ! yq -e '.containers and (.containers | length > 0)' "$FULL" > /dev/null; then
-            echo "ERROR: .containers is missing or empty in $FULL"
+          # Ensure containers exist
+          if ! yq -e '.containers and (.containers | length > 0)' "$FULL_PATH" > /dev/null; then
+            echo "ERROR: .containers missing or empty in $FULL_PATH"
             exit 1
           fi
 
-          echo "Updating ALL containers[].image.tag in ${FULL} to ${IMAGE_TAG}"
+          echo "Updating ALL containers[].image.tag to ${IMAGE_TAG}"
 
-          yq -i '(.containers[].image.tag) = strenv(IMAGE_TAG)' "$FULL"
+          yq -i '(.containers[].image.tag) = strenv(IMAGE_TAG)' "$FULL_PATH"
 
-          echo "New tags:"
-          yq -r '.containers[].image.tag' "$FULL"
+          echo "Updated tags:"
+          yq -r '.containers[].image.tag' "$FULL_PATH"
 
       - name: Commit and push
         env:
           SERVICE: ${{ inputs.service_name }}
           IMAGE_TAG: ${{ inputs.image_tag }}
-          ENVIRONMENT: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
         run: |
           set -euo pipefail
           cd gitops
@@ -99,7 +103,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           if git diff --quiet; then
-            echo "No changes to commit."
+            echo "No changes detected."
             exit 0
           fi
 
