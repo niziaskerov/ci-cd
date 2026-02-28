@@ -36,6 +36,29 @@ on:
         required: true
         type: string
 
+    outputs:
+      service_name:
+        description: "Service name passed by caller"
+        value: ${{ jobs.build-and-push.outputs.service_name }}
+      environment:
+        description: "Derived environment (prod for main, dev otherwise)"
+        value: ${{ jobs.build-and-push.outputs.environment }}
+      image_tag:
+        description: "Image tag (commit SHA)"
+        value: ${{ jobs.build-and-push.outputs.image_tag }}
+      ecr_repository:
+        description: "ECR repository path (namespace/env/service)"
+        value: ${{ jobs.build-and-push.outputs.ecr_repository }}
+      registry:
+        description: "ECR registry (account.dkr.ecr.region.amazonaws.com)"
+        value: ${{ jobs.build-and-push.outputs.registry }}
+      image_ref_sha:
+        description: "Full image reference with SHA tag"
+        value: ${{ jobs.build-and-push.outputs.image_ref_sha }}
+      image_ref_latest:
+        description: "Full image reference with latest tag"
+        value: ${{ jobs.build-and-push.outputs.image_ref_latest }}
+
 permissions:
   id-token: write
   contents: read
@@ -44,14 +67,22 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
-    # 👇 Dynamically assign GitHub Environment
-    environment: ${{ github.ref_name == 'main' && 'prod' || github.ref_name == 'dev' && 'dev' || 'dev' }}
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
 
     env:
       AWS_REGION: ${{ inputs.aws_region }}
       ENVIRONMENT: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
       ECR_REPOSITORY: ${{ inputs.ecr_namespace }}/${{ github.ref_name == 'main' && 'prod' || 'dev' }}/${{ inputs.service_name }}
       IMAGE_TAG: ${{ github.sha }}
+
+    outputs:
+      service_name: ${{ steps.meta.outputs.service_name }}
+      environment: ${{ steps.meta.outputs.environment }}
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      ecr_repository: ${{ steps.meta.outputs.ecr_repository }}
+      registry: ${{ steps.meta.outputs.registry }}
+      image_ref_sha: ${{ steps.meta.outputs.image_ref_sha }}
+      image_ref_latest: ${{ steps.meta.outputs.image_ref_latest }}
 
     steps:
       - name: Checkout
@@ -99,3 +130,18 @@ jobs:
             ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Export outputs
+        id: meta
+        run: |
+          set -euo pipefail
+
+          REGISTRY="${{ steps.ecr.outputs.registry }}"
+          ECR_REPO="${ECR_REPOSITORY}"
+          TAG="${IMAGE_TAG}"
+          ENVN="${ENVIRONMENT}"
+          SVC="${{ inputs.service_name }}"
+
+          echo "service_name=${SVC}" >> "$GITHUB_OUTPUT"
+          echo "environment=${ENVN}" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
