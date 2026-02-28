@@ -145,3 +145,7 @@ jobs:
           echo "service_name=${SVC}" >> "$GITHUB_OUTPUT"
           echo "environment=${ENVN}" >> "$GITHUB_OUTPUT"
           echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "ecr_repository=${ECR_REPO}" >> "$GITHUB_OUTPUT"
+          echo "registry=${REGISTRY}" >> "$GITHUB_OUTPUT"
+          echo "image_ref_sha=${REGISTRY}/${ECR_REPO}:${TAG}" >> "$GITHUB_OUTPUT"
+          echo "image_ref_latest=${REGISTRY}/${ECR_REPO}:latest" >> "$GITHUB_OUTPUT"
