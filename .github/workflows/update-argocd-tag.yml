@@ -1,0 +1,108 @@
+name: Update ArgoCD Helm Values Tags (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        required: true
+        type: string
+
+      image_tag:
+        description: "Commit SHA (or tag) from build job"
+        required: true
+        type: string
+
+      argocd_repo:
+        required: false
+        type: string
+        default: main
+
+      argocd_branch:
+        required: false
+        type: string
+        default: main
+
+    secrets:
+      ARGOCD_REPO_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+
+    steps:
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.argocd_repo }}
+          ref: ${{ inputs.argocd_branch }}
+          token: ${{ secrets.ARGOCD_REPO_TOKEN }}
+          path: gitops
+
+      - name: Install yq
+        run: |
+          set -euo pipefail
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Update values-(dev|prod).yaml tags for all containers
+        env:
+          SERVICE: ${{ inputs.service_name }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          ENVIRONMENT: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+        run: |
+          set -euo pipefail
+
+          if [ "$ENVIRONMENT" = "prod" ]; then
+            VALUES_FILE="services/${SERVICE}/values-prod.yaml"
+          else
+            VALUES_FILE="services/${SERVICE}/values-dev.yaml"
+          fi
+
+          FULL="gitops/${VALUES_FILE}"
+
+          if [ ! -f "$FULL" ]; then
+            echo "ERROR: Values file not found: $FULL"
+            echo "Listing gitops/services/${SERVICE}:"
+            ls -la "gitops/services/${SERVICE}" || true
+            exit 1
+          fi
+
+          # Fail fast if containers list missing/empty
+          if ! yq -e '.containers and (.containers | length > 0)' "$FULL" > /dev/null; then
+            echo "ERROR: .containers is missing or empty in $FULL"
+            exit 1
+          fi
+
+          echo "Updating ALL containers[].image.tag in ${FULL} to ${IMAGE_TAG}"
+
+          yq -i '(.containers[].image.tag) = strenv(IMAGE_TAG)' "$FULL"
+
+          echo "New tags:"
+          yq -r '.containers[].image.tag' "$FULL"
+
+      - name: Commit and push
+        env:
+          SERVICE: ${{ inputs.service_name }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          ENVIRONMENT: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+        run: |
+          set -euo pipefail
+          cd gitops
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git add .
+          git commit -m "chore(${SERVICE}): bump ${ENVIRONMENT} image tags to ${IMAGE_TAG}"
+          git push
