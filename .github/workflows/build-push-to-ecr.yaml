@@ -1,22 +1,57 @@
-name: Build and Push to ECR
+name: Build and Push to ECR (Reusable)
 
 on:
-  push:
-    branches: ["main"]
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      service_name:
+        required: true
+        type: string
+
+      aws_region:
+        required: false
+        type: string
+        default: eu-central-1
+
+      ecr_namespace:
+        required: false
+        type: string
+        default: sabahhub
+
+      dockerfile:
+        required: false
+        type: string
+        default: ./Dockerfile
+
+      context:
+        required: false
+        type: string
+        default: .
+
+      next_public_api_url:
+        required: false
+        type: string
+        default: "https://api.planandeat.az/api"
+
+      role_to_assume:
+        required: true
+        type: string
 
 permissions:
   id-token: write
   contents: read
 
-env:
-  AWS_REGION: eu-central-1
-  ECR_REPOSITORY: sabahhub/planandeat
-  IMAGE_TAG: ${{ github.sha }}
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+
+    # 👇 Dynamically assign GitHub Environment
+    environment: ${{ github.ref_name == 'main' && 'prod' || github.ref_name == 'dev' && 'dev' || 'dev' }}
+
+    env:
+      AWS_REGION: ${{ inputs.aws_region }}
+      ENVIRONMENT: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+      ECR_REPOSITORY: ${{ inputs.ecr_namespace }}/${{ github.ref_name == 'main' && 'prod' || 'dev' }}/${{ inputs.service_name }}
+      IMAGE_TAG: ${{ github.sha }}
 
     steps:
       - name: Checkout
@@ -30,15 +65,20 @@ jobs:
 
       - name: Ensure ECR repository exists
         run: |
+          set -euo pipefail
+
+          echo "Environment: ${ENVIRONMENT}"
+          echo "ECR repo: ${ECR_REPOSITORY}"
+
           if ! aws ecr describe-repositories --repository-names "${ECR_REPOSITORY}" --region "${AWS_REGION}" > /dev/null 2>&1; then
-            echo "ECR repository does not exist. Creating..."
+            echo "Creating ${ECR_REPOSITORY}"
             aws ecr create-repository \
               --repository-name "${ECR_REPOSITORY}" \
               --region "${AWS_REGION}" \
               --image-scanning-configuration scanOnPush=true \
               --encryption-configuration encryptionType=AES256
           else
-            echo "ECR repository already exists."
+            echo "Repository already exists"
           fi
 
       - name: Login to Amazon ECR
@@ -52,10 +92,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           push: true
-          context: .
-          dockerfile: ./Dockerfile
-          build-args: |
-            NEXT_PUBLIC_API_URL=https://api.planandeat.az/api
+          context: ${{ inputs.context }}
+          dockerfile: ${{ inputs.dockerfile }}
           tags: |
             ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
             ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
