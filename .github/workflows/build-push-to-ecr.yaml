@@ -41,7 +41,7 @@ on:
         description: "Service name passed by caller"
         value: ${{ jobs.build-and-push.outputs.service_name }}
       environment:
-        description: "Derived environment (prod for main, dev otherwise)"
+        description: "Derived environment (prod for main/eks, dev otherwise)"
         value: ${{ jobs.build-and-push.outputs.environment }}
       image_tag:
         description: "Image tag (commit SHA)"
@@ -67,12 +67,15 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
-    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    # ✅ prod for main OR eks
+    environment: ${{ (github.ref_name == 'main' || github.ref_name == 'eks') && 'prod' || 'dev' }}
 
     env:
       AWS_REGION: ${{ inputs.aws_region }}
-      ENVIRONMENT: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
-      ECR_REPOSITORY: ${{ inputs.ecr_namespace }}/${{ github.ref_name == 'main' && 'prod' || 'dev' }}/${{ inputs.service_name }}
+      # ✅ prod for main OR eks
+      ENVIRONMENT: ${{ (github.ref_name == 'main' || github.ref_name == 'eks') && 'prod' || 'dev' }}
+      # ✅ prod for main OR eks
+      ECR_REPOSITORY: ${{ inputs.ecr_namespace }}/${{ (github.ref_name == 'main' || github.ref_name == 'eks') && 'prod' || 'dev' }}/${{ inputs.service_name }}
       IMAGE_TAG: ${{ github.sha }}
 
     outputs:
