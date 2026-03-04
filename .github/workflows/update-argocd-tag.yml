@@ -35,10 +35,13 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+
+    # ✅ prod for main OR eks
+    environment: ${{ (github.ref_name == 'main' || github.ref_name == 'eks') && 'prod' || 'dev' }}
 
     env:
-      ENVIRONMENT: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+      # ✅ prod for main OR eks
+      ENVIRONMENT: ${{ (github.ref_name == 'main' || github.ref_name == 'eks') && 'prod' || 'dev' }}
 
     steps:
       - name: Checkout GitOps repo
