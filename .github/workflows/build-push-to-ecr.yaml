@@ -146,6 +146,8 @@ jobs:
           push: true
           context: ${{ inputs.context }}
           dockerfile: ${{ inputs.dockerfile }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ inputs.NEXT_PUBLIC_API_URL }}
           tags: |
             ${{ steps.ecr.outputs.registry }}/${{ steps.ecr_repo.outputs.ecr_repository }}:${{ env.IMAGE_TAG }}
             ${{ steps.ecr.outputs.registry }}/${{ steps.ecr_repo.outputs.ecr_repository }}:latest
