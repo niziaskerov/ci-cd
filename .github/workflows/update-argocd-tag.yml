@@ -36,11 +36,9 @@ jobs:
   update:
     runs-on: ubuntu-latest
 
-    # ✅ prod for main OR eks
     environment: ${{ (github.ref_name == 'main' || github.ref_name == 'eks') && 'prod' || 'dev' }}
 
     env:
-      # ✅ prod for main OR eks
       ENVIRONMENT: ${{ (github.ref_name == 'main' || github.ref_name == 'eks') && 'prod' || 'dev' }}
 
     steps:
@@ -81,16 +79,29 @@ jobs:
             exit 1
           fi
 
-          # Ensure containers exist
+          # --- FRONTEND CHECK ---
+          if [[ "$SERVICE" == *"frontend"* ]]; then
+            if yq -e '.frontend and .frontend.image' "$FULL_PATH" > /dev/null; then
+              echo "Service name contains 'frontend', updating frontend.image.tag"
+              yq -i '(.frontend.image.tag) = strenv(IMAGE_TAG)' "$FULL_PATH"
+              echo "Updated frontend.image.tag:"
+              yq -r '.frontend.image.tag' "$FULL_PATH"
+              echo "Exiting workflow after frontend tag update."
+              exit 0
+            else
+              echo "WARNING: .frontend.image not found in $FULL_PATH, skipping frontend tag update"
+              exit 1
+            fi
+          fi
+
+          # --- EXISTING BACKEND LOGIC ---
           if ! yq -e '.containers and (.containers | length > 0)' "$FULL_PATH" > /dev/null; then
             echo "ERROR: .containers missing or empty in $FULL_PATH"
             exit 1
           fi
 
           echo "Updating ALL containers[].image.tag to ${IMAGE_TAG}"
-
           yq -i '(.containers[].image.tag) = strenv(IMAGE_TAG)' "$FULL_PATH"
-
           echo "Updated tags:"
           yq -r '.containers[].image.tag' "$FULL_PATH"
 
