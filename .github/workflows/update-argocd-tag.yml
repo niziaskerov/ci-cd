@@ -79,10 +79,11 @@ jobs:
             exit 1
           fi
 
-          # --- FRONTEND CHECK ---
-          if [[ "$SERVICE" == *"frontend"* ]]; then
+          # --- FRONTEND CHECK BASED ON CALLER REPO NAME ---
+          REPO_NAME=$(basename "$GITHUB_REPOSITORY")
+          if [[ "$REPO_NAME" == *"frontend"* ]]; then
             if yq -e '.frontend and .frontend.image' "$FULL_PATH" > /dev/null; then
-              echo "Service name contains 'frontend', updating frontend.image.tag"
+              echo "Caller repo name contains 'frontend', updating frontend.image.tag"
               yq -i '(.frontend.image.tag) = strenv(IMAGE_TAG)' "$FULL_PATH"
               echo "Updated frontend.image.tag:"
               yq -r '.frontend.image.tag' "$FULL_PATH"
