@@ -32,6 +32,12 @@ on:
         type: string
         default: "https://api.planandeat.az/api"
 
+      custom_ecr_repo:
+        description: "Optional ECR repo path provided by caller repo"
+        required: false
+        type: string
+        default: ""
+
     secrets:
       role_to_assume:
         required: true
@@ -67,15 +73,11 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
-    # ✅ prod for main OR eks
     environment: ${{ (github.ref_name == 'main' || github.ref_name == 'eks') && 'prod' || 'dev' }}
 
     env:
       AWS_REGION: ${{ inputs.aws_region }}
-      # ✅ prod for main OR eks
       ENVIRONMENT: ${{ (github.ref_name == 'main' || github.ref_name == 'eks') && 'prod' || 'dev' }}
-      # ✅ prod for main OR eks
-      ECR_REPOSITORY: ${{ inputs.ecr_namespace }}/${{ (github.ref_name == 'main' || github.ref_name == 'eks') && 'prod' || 'dev' }}/${{ inputs.service_name }}
       IMAGE_TAG: ${{ github.sha }}
 
     outputs:
@@ -97,17 +99,33 @@ jobs:
           role-to-assume: ${{ secrets.role_to_assume }}
           aws-region: ${{ inputs.aws_region }}
 
-      - name: Ensure ECR repository exists
+      - name: Determine ECR repository
+        id: ecr_repo
         run: |
           set -euo pipefail
 
-          echo "Environment: ${ENVIRONMENT}"
-          echo "ECR repo: ${ECR_REPOSITORY}"
+          if [ -n "${{ inputs.custom_ecr_repo }}" ]; then
+            echo "Using custom ECR repo from caller repo: ${{ inputs.custom_ecr_repo }}"
+            ECR_REPO="${{ inputs.custom_ecr_repo }}"
+          else
+            ECR_REPO="${{ inputs.ecr_namespace }}/${{ env.ENVIRONMENT }}/${{ inputs.service_name }}"
+            echo "Using default ECR repo: $ECR_REPO"
+          fi
 
-          if ! aws ecr describe-repositories --repository-names "${ECR_REPOSITORY}" --region "${AWS_REGION}" > /dev/null 2>&1; then
-            echo "Creating ${ECR_REPOSITORY}"
+          echo "ecr_repository=$ECR_REPO" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure ECR repository exists
+        run: |
+          set -euo pipefail
+          echo "Environment: ${ENVIRONMENT}"
+          echo "ECR repo: ${{ steps.ecr_repo.outputs.ecr_repository }}"
+
+          if ! aws ecr describe-repositories \
+            --repository-names "${{ steps.ecr_repo.outputs.ecr_repository }}" \
+            --region "${AWS_REGION}" > /dev/null 2>&1; then
+            echo "Creating ${{ steps.ecr_repo.outputs.ecr_repository }}"
             aws ecr create-repository \
-              --repository-name "${ECR_REPOSITORY}" \
+              --repository-name "${{ steps.ecr_repo.outputs.ecr_repository }}" \
               --region "${AWS_REGION}" \
               --image-scanning-configuration scanOnPush=true \
               --encryption-configuration encryptionType=AES256
@@ -129,8 +147,8 @@ jobs:
           context: ${{ inputs.context }}
           dockerfile: ${{ inputs.dockerfile }}
           tags: |
-            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+            ${{ steps.ecr.outputs.registry }}/${{ steps.ecr_repo.outputs.ecr_repository }}:${{ env.IMAGE_TAG }}
+            ${{ steps.ecr.outputs.registry }}/${{ steps.ecr_repo.outputs.ecr_repository }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -140,7 +158,7 @@ jobs:
           set -euo pipefail
 
           REGISTRY="${{ steps.ecr.outputs.registry }}"
-          ECR_REPO="${ECR_REPOSITORY}"
+          ECR_REPO="${{ steps.ecr_repo.outputs.ecr_repository }}"
           TAG="${IMAGE_TAG}"
           ENVN="${ENVIRONMENT}"
           SVC="${{ inputs.service_name }}"
