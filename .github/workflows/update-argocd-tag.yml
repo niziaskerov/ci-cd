@@ -81,9 +81,9 @@ jobs:
 
           # --- FRONTEND CHECK BASED ON CALLER REPO NAME ---
           REPO_NAME=$(basename "$GITHUB_REPOSITORY")
-          if [[ "$REPO_NAME" == *"frontend"* ]]; then
+          if [[ "$REPO_NAME" == *"frontend"* || "$REPO_NAME" == *"admin-panel"* ]]; then
             if yq -e '.frontend and .frontend.image' "$FULL_PATH" > /dev/null; then
-              echo "Caller repo name contains 'frontend', updating frontend.image.tag"
+              echo "Caller repo name contains 'frontend' or 'admin-panel', updating frontend.image.tag"
               yq -i '(.frontend.image.tag) = strenv(IMAGE_TAG)' "$FULL_PATH"
               echo "Updated frontend.image.tag:"
               yq -r '.frontend.image.tag' "$FULL_PATH"
@@ -94,7 +94,7 @@ jobs:
               exit 1
             fi
           fi
-
+          
           # --- EXISTING BACKEND LOGIC ---
           if ! yq -e '.containers and (.containers | length > 0)' "$FULL_PATH" > /dev/null; then
             echo "ERROR: .containers missing or empty in $FULL_PATH"
