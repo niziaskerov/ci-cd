@@ -27,7 +27,7 @@ on:
         type: string
         default: .
 
-      next_public_api_url:
+      NEXT_PUBLIC_API_URL:
         required: false
         type: string
         default: "https://api.planandeat.az/api"
