@@ -123,5 +123,5 @@ jobs:
           fi
 
           git add .
-          git commit -m "chore(${SERVICE}): bump ${ENVIRONMENT} image tags to ${IMAGE_TAG}"
+          git commit -m "chore(${GITHUB_REPOSITORY#*/}): bump ${ENVIRONMENT} image tags to ${IMAGE_TAG}"
           git push
