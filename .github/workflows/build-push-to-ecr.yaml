@@ -30,7 +30,6 @@ on:
       NEXT_PUBLIC_API_URL:
         required: false
         type: string
-        default: "https://api.planandeat.az/api"
 
       custom_ecr_repo:
         description: "Optional ECR repo path provided by caller repo"
