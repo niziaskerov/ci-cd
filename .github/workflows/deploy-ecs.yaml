@@ -1,0 +1,90 @@
+# .github/workflows/deploy-to-ecs.yaml
+name: Deploy to ECS (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      aws_region:
+        required: false
+        type: string
+        default: eu-central-1
+
+      ecs_cluster:
+        required: true
+        type: string
+
+      ecs_service:
+        required: true
+        type: string
+
+      task_definition:
+        description: "Path to ECS task definition JSON in caller repo"
+        required: false
+        type: string
+        default: .aws/task-definition.json
+
+      container_name:
+        description: "Container name inside task definition to update"
+        required: true
+        type: string
+
+      image_uri:
+        description: "Full image URI already pushed to ECR"
+        required: true
+        type: string
+
+      wait_for_service_stability:
+        required: false
+        type: boolean
+        default: true
+
+      enable_ecs_managed_tags:
+        required: false
+        type: boolean
+        default: true
+
+      propagate_tags:
+        description: "Optional: SERVICE or TASK_DEFINITION"
+        required: false
+        type: string
+        default: SERVICE
+
+    secrets:
+      role_to_assume:
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.role_to_assume }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Render ECS task definition
+        id: render-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ inputs.task_definition }}
+          container-name: ${{ inputs.container_name }}
+          image: ${{ inputs.image_uri }}
+
+      - name: Deploy ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+          cluster: ${{ inputs.ecs_cluster }}
+          service: ${{ inputs.ecs_service }}
+          wait-for-service-stability: ${{ inputs.wait_for_service_stability }}
+          enable-ecs-managed-tags: ${{ inputs.enable_ecs_managed_tags }}
+          propagate-tags: ${{ inputs.propagate_tags }}
