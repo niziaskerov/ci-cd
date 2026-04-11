@@ -4,16 +4,17 @@ name: Deploy to ECS (Reusable)
 on:
   workflow_call:
     inputs:
+      service_name:
+        description: "Application/service name. Also used as ECS service name."
+        required: true
+        type: string
+
       aws_region:
         required: false
         type: string
         default: eu-central-1
 
       ecs_cluster:
-        required: true
-        type: string
-
-      ecs_service:
         required: true
         type: string
 
@@ -44,7 +45,6 @@ on:
         default: true
 
       propagate_tags:
-        description: "Optional: SERVICE or TASK_DEFINITION"
         required: false
         type: string
         default: SERVICE
@@ -84,7 +84,7 @@ jobs:
         with:
           task-definition: ${{ steps.render-task-def.outputs.task-definition }}
           cluster: ${{ inputs.ecs_cluster }}
-          service: ${{ inputs.ecs_service }}
+          service: ${{ inputs.service_name }}
           wait-for-service-stability: ${{ inputs.wait_for_service_stability }}
           enable-ecs-managed-tags: ${{ inputs.enable_ecs_managed_tags }}
           propagate-tags: ${{ inputs.propagate_tags }}
