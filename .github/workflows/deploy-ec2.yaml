@@ -1,0 +1,141 @@
+name: Reusable Deploy Workflow
+
+on:
+  workflow_call:
+    inputs:
+      project_directory:
+        description: "Directory on the server; omitted = repo name"
+        required: false
+        type: string
+
+      compose_file:
+        description: "Path to docker-compose file; default docker-compose.yml"
+        required: false
+        type: string
+
+      aws_region:
+        description: "AWS region for ECR login"
+        required: false
+        type: string
+        default: eu-central-1
+
+      image_env_name:
+        description: "Environment variable name used in docker-compose for the image tag"
+        required: false
+        type: string
+        default: IMAGE_TAG
+
+      service_name:
+        description: "Optional compose service name to pull explicitly"
+        required: false
+        type: string
+
+      ecr_registry:
+        description: "ECR registry from build job"
+        required: true
+        type: string
+
+      image_repository:
+        description: "ECR repository from build job"
+        required: true
+        type: string
+
+      image_tag:
+        description: "Image tag from build job"
+        required: true
+        type: string
+
+    secrets:
+      DEV_HOST:
+        required: false
+      PRIVATE_KEY:
+        required: true
+      PROD_HOST:
+        required: true
+      USERNAME:
+        required: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Determine environment from branch
+        id: env
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF##*/}" == "dev" ]]; then
+            echo "env=dev" >> "$GITHUB_OUTPUT"
+            echo "branch=dev" >> "$GITHUB_OUTPUT"
+          elif [[ "${GITHUB_REF##*/}" == "main" || "${GITHUB_REF##*/}" == "eks" ]]; then
+            echo "env=prod" >> "$GITHUB_OUTPUT"
+            echo "branch=${GITHUB_REF##*/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "Unsupported branch: ${GITHUB_REF##*/}"
+            exit 1
+          fi
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ steps.env.outputs.env == 'prod' && secrets.PROD_HOST || secrets.DEV_HOST }}
+          key: ${{ secrets.PRIVATE_KEY }}
+          username: ${{ secrets.USERNAME || 'ubuntu' }}
+          port: 22
+          script: |
+            set -euo pipefail
+
+            REPO_NAME="${{ github.event.repository.name }}"
+
+            if [ -z "${{ inputs.project_directory }}" ]; then
+              PROJECT_DIR="/root/$REPO_NAME"
+            else
+              PROJECT_DIR="${{ inputs.project_directory }}"
+            fi
+
+            if [ -z "${{ inputs.compose_file }}" ]; then
+              COMPOSE_FILE="docker-compose.yml"
+            else
+              COMPOSE_FILE="${{ inputs.compose_file }}"
+            fi
+
+            REGISTRY="${{ inputs.ecr_registry }}"
+            IMAGE_REPOSITORY="${{ inputs.image_repository }}"
+            IMAGE_TAG="${{ inputs.image_tag }}"
+            AWS_REGION="${{ inputs.aws_region }}"
+            IMAGE_ENV_NAME="${{ inputs.image_env_name }}"
+            SERVICE_NAME="${{ inputs.service_name }}"
+
+            FULL_IMAGE="${REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}"
+
+            echo "Environment: ${{ steps.env.outputs.env }}"
+            echo "Project directory: $PROJECT_DIR"
+            echo "Compose file: $COMPOSE_FILE"
+            echo "Deploying image: $FULL_IMAGE"
+
+            cd "$PROJECT_DIR"
+
+            aws ecr get-login-password --region "$AWS_REGION" \
+              | docker login --username AWS --password-stdin "$REGISTRY"
+
+            export IMAGE_TAG="$IMAGE_TAG"
+            export FULL_IMAGE="$FULL_IMAGE"
+            export "$IMAGE_ENV_NAME=$IMAGE_TAG"
+
+            if [ -n "$SERVICE_NAME" ]; then
+              docker-compose -f "$COMPOSE_FILE" pull "$SERVICE_NAME"
+            else
+              docker-compose -f "$COMPOSE_FILE" pull
+            fi
+
+            docker-compose -f "$COMPOSE_FILE" down
+            docker-compose -f "$COMPOSE_FILE" up -d
+
+            sleep 20
+
+            echo "Showing last 80 lines of logs for all services..."
+            docker-compose -f "$COMPOSE_FILE" logs --tail=80 --no-color || true
+
+            echo "Currently running containers:"
+            docker-compose -f "$COMPOSE_FILE" ps
