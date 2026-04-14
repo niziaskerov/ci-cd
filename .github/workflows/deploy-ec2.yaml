@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       project_directory:
-        description: "Directory on the server; omitted = repo name"
+        description: "Directory on the server; omitted = /root/<repo_name>"
         required: false
         type: string
 
@@ -20,37 +20,34 @@ on:
         default: eu-central-1
 
       image_env_name:
-        description: "Environment variable name used in docker-compose for the image tag"
+        description: "Environment variable name used in docker-compose"
         required: false
         type: string
         default: IMAGE_TAG
 
       service_name:
-        description: "Optional compose service name to pull explicitly"
+        description: "Optional compose service name"
         required: false
         type: string
 
       ecr_registry:
-        description: "ECR registry from build job"
         required: true
         type: string
 
       image_repository:
-        description: "ECR repository from build job"
         required: true
         type: string
 
       image_tag:
-        description: "Image tag from build job"
         required: true
         type: string
 
     secrets:
       DEV_HOST:
         required: false
-      PRIVATE_KEY:
-        required: true
       PROD_HOST:
+        required: true
+      PRIVATE_KEY:
         required: true
       USERNAME:
         required: false
@@ -106,13 +103,15 @@ jobs:
             AWS_REGION="${{ inputs.aws_region }}"
             IMAGE_ENV_NAME="${{ inputs.image_env_name }}"
             SERVICE_NAME="${{ inputs.service_name }}"
-
             FULL_IMAGE="${REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}"
 
             echo "Environment: ${{ steps.env.outputs.env }}"
             echo "Project directory: $PROJECT_DIR"
             echo "Compose file: $COMPOSE_FILE"
             echo "Deploying image: $FULL_IMAGE"
+
+            sudo -i bash <<EOF
+            set -euo pipefail
 
             cd "$PROJECT_DIR"
 
@@ -121,21 +120,26 @@ jobs:
 
             export IMAGE_TAG="$IMAGE_TAG"
             export FULL_IMAGE="$FULL_IMAGE"
-            export "$IMAGE_ENV_NAME=$IMAGE_TAG"
+            export $IMAGE_ENV_NAME="$IMAGE_TAG"
 
+            echo "Pulling latest images..."
             if [ -n "$SERVICE_NAME" ]; then
               docker-compose -f "$COMPOSE_FILE" pull "$SERVICE_NAME"
             else
               docker-compose -f "$COMPOSE_FILE" pull
             fi
 
+            echo "Stopping current containers..."
             docker-compose -f "$COMPOSE_FILE" down
+
+            echo "Starting updated containers..."
             docker-compose -f "$COMPOSE_FILE" up -d
 
             sleep 20
 
-            echo "Showing last 80 lines of logs for all services..."
+            echo "Showing last 80 lines of logs..."
             docker-compose -f "$COMPOSE_FILE" logs --tail=80 --no-color || true
 
             echo "Currently running containers:"
             docker-compose -f "$COMPOSE_FILE" ps
+            EOF
