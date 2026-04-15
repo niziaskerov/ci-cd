@@ -81,7 +81,7 @@ jobs:
 
           # --- FRONTEND CHECK BASED ON CALLER REPO NAME ---
           REPO_NAME=$(basename "$GITHUB_REPOSITORY")
-          if [[ "$REPO_NAME" == *"frontend"* || "$REPO_NAME" == *"admin-panel"* || "$REPO_NAME" == *"web"* ]]; then
+          if [[ ( "$REPO_NAME" == *"frontend"* || "$REPO_NAME" == *"admin-panel"* || "$REPO_NAME" == *"web"* ) && "$REPO_NAME" != *"web-backend"* ]]; then
             if yq -e '.frontend and .frontend.image' "$FULL_PATH" > /dev/null; then
               echo "Caller repo name contains 'frontend' or 'admin-panel', updating frontend.image.tag"
               yq -i '(.frontend.image.tag) = strenv(IMAGE_TAG)' "$FULL_PATH"
