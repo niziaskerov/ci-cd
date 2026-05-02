@@ -31,6 +31,12 @@ on:
         required: false
         type: string
 
+      build_args:
+        description: "Docker build arguments, one KEY=VALUE per line"
+        required: false
+        type: string
+        default: ""
+
       custom_ecr_repo:
         description: "Optional ECR repo path provided by caller repo"
         required: false
@@ -145,8 +151,7 @@ jobs:
           push: true
           context: ${{ inputs.context }}
           dockerfile: ${{ inputs.dockerfile }}
-          build-args: |
-            NEXT_PUBLIC_API_URL=${{ inputs.NEXT_PUBLIC_API_URL }}
+          build-args: ${{ inputs.build_args }}
           tags: |
             ${{ steps.ecr.outputs.registry }}/${{ steps.ecr_repo.outputs.ecr_repository }}:${{ env.IMAGE_TAG }}
             ${{ steps.ecr.outputs.registry }}/${{ steps.ecr_repo.outputs.ecr_repository }}:latest
