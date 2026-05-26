@@ -14,6 +14,10 @@ on:
         default: true
         type: boolean
 
+      DISTRIBUTION_ID:
+        type: string
+        required: false
+
       s3_bucket:
         type: string
         required: true
@@ -107,5 +111,5 @@ jobs:
         if: ${{ inputs.invalidate_cloudfront == true }}
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id $DISTRIBUTION_ID \
+            --distribution-id ${DISTRIBUTION_ID} \
             --paths "/*"
