@@ -8,6 +8,12 @@ on:
         required: false
         default: eu-central-1
 
+      invalidate_cloudfront:
+        description: "Invalidate CloudFront cache?"
+        required: false
+        default: true
+        type: boolean
+
       s3_bucket:
         type: string
         required: true
@@ -96,3 +102,10 @@ jobs:
 
       - name: Deploy to S3
         run: aws s3 sync "$BUILD_OUTPUT_PATH" "s3://${S3_BUCKET}/" --delete
+
+      - name: Invalidate CloudFront cache
+        if: ${{ inputs.invalidate_cloudfront == true }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id $DISTRIBUTION_ID \
+            --paths "/*"
