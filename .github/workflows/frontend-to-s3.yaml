@@ -111,5 +111,5 @@ jobs:
         if: ${{ inputs.invalidate_cloudfront == true }}
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id ${DISTRIBUTION_ID} \
+            --distribution-id ${{ inputs.DISTRIBUTION_ID }} \
             --paths "/*"
