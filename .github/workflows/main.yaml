@@ -83,7 +83,7 @@ jobs:
 
             git fetch --all
             git checkout -f ${{ steps.env.outputs.branch }}
-            git pull
+            git pull -r
 
             docker-compose -f "$COMPOSE_FILE" down
             echo "Deploying new version..."
