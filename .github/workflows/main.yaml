@@ -30,7 +30,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: common-runner
 
     steps:
       - name: Determine environment from branch
