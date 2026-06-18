@@ -50,14 +50,75 @@ jobs:
           token: ${{ secrets.ARGOCD_REPO_TOKEN }}
           path: gitops
 
-      - name: Install yq
+      - name: Install required tools
+        shell: bash
         run: |
           set -euo pipefail
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
+
+          if command -v wget >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 && command -v git >/dev/null 2>&1; then
+            echo "Required tools already installed"
+            exit 0
+          fi
+
+          if command -v sudo >/dev/null 2>&1; then
+            SUDO="sudo"
+          else
+            SUDO=""
+          fi
+
+          if command -v apt-get >/dev/null 2>&1; then
+            $SUDO apt-get update
+            $SUDO apt-get install -y wget curl git jq ca-certificates
+          elif command -v apk >/dev/null 2>&1; then
+            $SUDO apk add --no-cache wget curl git jq ca-certificates bash
+          elif command -v yum >/dev/null 2>&1; then
+            $SUDO yum install -y wget curl git jq ca-certificates
+          else
+            echo "No supported package manager found"
+            exit 1
+          fi
+
+          echo "Installed tools:"
+          wget --version | head -n 1 || true
+          curl --version | head -n 1 || true
+          git --version || true
+          jq --version || true
+
+      - name: Install yq
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if command -v yq >/dev/null 2>&1; then
+            echo "yq already installed"
+            yq --version
+            exit 0
+          fi
+
+          if command -v sudo >/dev/null 2>&1; then
+            SUDO="sudo"
+          else
+            SUDO=""
+          fi
+
+          ARCH="$(uname -m)"
+
+          if [ "$ARCH" = "x86_64" ]; then
+            YQ_BINARY="yq_linux_amd64"
+          elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+            YQ_BINARY="yq_linux_arm64"
+          else
+            echo "Unsupported architecture: $ARCH"
+            exit 1
+          fi
+
+          $SUDO wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/latest/download/${YQ_BINARY}"
+          $SUDO chmod +x /usr/local/bin/yq
+
           yq --version
 
-      - name: Update values file (dev/prod based on branch)
+      - name: Update values file dev/prod based on branch
+        shell: bash
         env:
           SERVICE: ${{ inputs.service_name }}
           IMAGE_TAG: ${{ inputs.image_tag }}
@@ -72,6 +133,11 @@ jobs:
 
           FULL_PATH="gitops/${VALUES_FILE}"
 
+          echo "Environment: $ENVIRONMENT"
+          echo "Service: $SERVICE"
+          echo "Image tag: $IMAGE_TAG"
+          echo "Values file: $FULL_PATH"
+
           if [ ! -f "$FULL_PATH" ]; then
             echo "ERROR: File not found -> $FULL_PATH"
             echo "Available files under services/${SERVICE}:"
@@ -79,39 +145,55 @@ jobs:
             exit 1
           fi
 
-          # --- FRONTEND CHECK BASED ON CALLER REPO NAME ---
-          REPO_NAME=$(basename "$GITHUB_REPOSITORY")
-          if [[ ( "$REPO_NAME" == *"frontend"* || "$REPO_NAME" == *"admin-panel"* || "$REPO_NAME" == *"web"* || "$REPO_NAME" == *"customer"* || "$REPO_NAME" == *"landing-page"* ) && "$REPO_NAME" != *"web-backend"* ]]; then
+          REPO_NAME="$(basename "$GITHUB_REPOSITORY")"
+          echo "Caller repo name: $REPO_NAME"
+
+          # Frontend logic based on caller repo name
+          if [[ 
+            (
+              "$REPO_NAME" == *"frontend"* ||
+              "$REPO_NAME" == *"admin-panel"* ||
+              "$REPO_NAME" == *"web"* ||
+              "$REPO_NAME" == *"customer"* ||
+              "$REPO_NAME" == *"landing-page"*
+            ) &&
+            "$REPO_NAME" != *"web-backend"*
+          ]]; then
             if yq -e '.frontend and .frontend.image' "$FULL_PATH" > /dev/null; then
-              echo "Caller repo name contains 'frontend' or 'admin-panel', updating frontend.image.tag"
+              echo "Frontend repo detected. Updating frontend.image.tag"
               yq -i '(.frontend.image.tag) = strenv(IMAGE_TAG)' "$FULL_PATH"
+
               echo "Updated frontend.image.tag:"
               yq -r '.frontend.image.tag' "$FULL_PATH"
-              echo "Exiting workflow after frontend tag update."
+
+              echo "Skipping backend containers update."
               exit 0
             else
-              echo "WARNING: .frontend.image not found in $FULL_PATH, skipping frontend tag update"
+              echo "ERROR: .frontend.image not found in $FULL_PATH"
               exit 1
             fi
           fi
-          
-          # --- EXISTING BACKEND LOGIC ---
+
+          # Backend logic
           if ! yq -e '.containers and (.containers | length > 0)' "$FULL_PATH" > /dev/null; then
             echo "ERROR: .containers missing or empty in $FULL_PATH"
             exit 1
           fi
 
-          echo "Updating ALL containers[].image.tag to ${IMAGE_TAG}"
+          echo "Backend repo detected. Updating ALL containers[].image.tag to ${IMAGE_TAG}"
           yq -i '(.containers[].image.tag) = strenv(IMAGE_TAG)' "$FULL_PATH"
-          echo "Updated tags:"
+
+          echo "Updated backend tags:"
           yq -r '.containers[].image.tag' "$FULL_PATH"
 
       - name: Commit and push
+        shell: bash
         env:
           SERVICE: ${{ inputs.service_name }}
           IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
           set -euo pipefail
+
           cd gitops
 
           git config user.name "github-actions[bot]"
@@ -122,6 +204,7 @@ jobs:
             exit 0
           fi
 
+          git status
           git add .
           git commit -m "chore(${GITHUB_REPOSITORY#*/}): bump ${ENVIRONMENT} image tags to ${IMAGE_TAG}"
-          git push
+          git push origin "${{ inputs.argocd_branch }}"
