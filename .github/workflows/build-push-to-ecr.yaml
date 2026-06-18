@@ -52,16 +52,16 @@ on:
         description: "Service name passed by caller"
         value: ${{ jobs.build-and-push.outputs.service_name }}
       environment:
-        description: "Derived environment (prod for main/eks, dev otherwise)"
+        description: "Derived environment"
         value: ${{ jobs.build-and-push.outputs.environment }}
       image_tag:
-        description: "Image tag (commit SHA)"
+        description: "Image tag"
         value: ${{ jobs.build-and-push.outputs.image_tag }}
       ecr_repository:
-        description: "ECR repository path (namespace/env/service)"
+        description: "ECR repository path"
         value: ${{ jobs.build-and-push.outputs.ecr_repository }}
       registry:
-        description: "ECR registry (account.dkr.ecr.region.amazonaws.com)"
+        description: "ECR registry"
         value: ${{ jobs.build-and-push.outputs.registry }}
       image_ref_sha:
         description: "Full image reference with SHA tag"
@@ -98,6 +98,44 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install AWS CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if command -v aws >/dev/null 2>&1; then
+            echo "AWS CLI already installed"
+            aws --version
+            exit 0
+          fi
+
+          echo "Installing AWS CLI..."
+
+          if command -v sudo >/dev/null 2>&1; then
+            SUDO="sudo"
+          else
+            SUDO=""
+          fi
+
+          $SUDO apt-get update
+          $SUDO apt-get install -y curl unzip
+
+          ARCH="$(uname -m)"
+          if [ "$ARCH" = "x86_64" ]; then
+            AWSCLI_URL="https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+          elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+            AWSCLI_URL="https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip"
+          else
+            echo "Unsupported architecture: $ARCH"
+            exit 1
+          fi
+
+          curl "$AWSCLI_URL" -o "awscliv2.zip"
+          unzip -q awscliv2.zip
+          $SUDO ./aws/install --update
+
+          aws --version
+
       - name: Configure AWS credentials via GitHub OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -106,6 +144,7 @@ jobs:
 
       - name: Determine ECR repository
         id: ecr_repo
+        shell: bash
         run: |
           set -euo pipefail
 
@@ -120,15 +159,19 @@ jobs:
           echo "ecr_repository=$ECR_REPO" >> "$GITHUB_OUTPUT"
 
       - name: Ensure ECR repository exists
+        shell: bash
         run: |
           set -euo pipefail
+
           echo "Environment: ${ENVIRONMENT}"
           echo "ECR repo: ${{ steps.ecr_repo.outputs.ecr_repository }}"
 
           if ! aws ecr describe-repositories \
             --repository-names "${{ steps.ecr_repo.outputs.ecr_repository }}" \
             --region "${AWS_REGION}" > /dev/null 2>&1; then
+
             echo "Creating ${{ steps.ecr_repo.outputs.ecr_repository }}"
+
             aws ecr create-repository \
               --repository-name "${{ steps.ecr_repo.outputs.ecr_repository }}" \
               --region "${AWS_REGION}" \
@@ -160,6 +203,7 @@ jobs:
 
       - name: Export outputs
         id: meta
+        shell: bash
         run: |
           set -euo pipefail
 
