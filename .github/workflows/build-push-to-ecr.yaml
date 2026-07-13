@@ -78,11 +78,11 @@ jobs:
   build-and-push:
     runs-on: common-runner
 
-    environment: ${{ (github.ref_name == 'main' || github.ref_name == 'eks') && 'prod' || 'dev' }}
+    environment: ${{ (github.ref_name == 'main' || github.ref_name == 'prod') && 'prod' || 'dev' }}
 
     env:
       AWS_REGION: ${{ inputs.aws_region }}
-      ENVIRONMENT: ${{ (github.ref_name == 'main' || github.ref_name == 'eks') && 'prod' || 'dev' }}
+      ENVIRONMENT: ${{ (github.ref_name == 'main' || github.ref_name == 'prod') && 'prod' || 'dev' }}
       IMAGE_TAG: ${{ github.sha }}
 
     outputs:
