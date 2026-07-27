@@ -155,6 +155,7 @@ jobs:
               "$REPO_NAME" == *"admin-panel"* ||
               "$REPO_NAME" == *"web"* ||
               "$REPO_NAME" == *"customer"* ||
+              "$REPO_NAME" == *"rahart-admin"* ||
               "$REPO_NAME" == *"landing-page"*
             ) &&
             "$REPO_NAME" != *"web-backend"*
