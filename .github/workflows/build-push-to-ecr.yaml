@@ -193,13 +193,14 @@ jobs:
         with:
           push: true
           context: ${{ inputs.context }}
-          dockerfile: ${{ inputs.dockerfile }}
+          file: ${{ inputs.dockerfile }}
           build-args: ${{ inputs.build_args }}
+          provenance: false
           tags: |
             ${{ steps.ecr.outputs.registry }}/${{ steps.ecr_repo.outputs.ecr_repository }}:${{ env.IMAGE_TAG }}
             ${{ steps.ecr.outputs.registry }}/${{ steps.ecr_repo.outputs.ecr_repository }}:latest
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
 
       - name: Export outputs
         id: meta
