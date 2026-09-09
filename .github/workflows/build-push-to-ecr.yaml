@@ -7,6 +7,11 @@ on:
         required: true
         type: string
 
+      runner:
+        required: false
+        type: string
+        default: common-runner
+
       aws_region:
         required: false
         type: string
@@ -76,7 +81,7 @@ permissions:
 
 jobs:
   build-and-push:
-    runs-on: common-runner
+    runs-on: ${{ inputs.runner }}
 
     environment: ${{ (github.ref_name == 'main' || github.ref_name == 'prod') && 'prod' || 'dev' }}
 
