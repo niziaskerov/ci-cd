@@ -84,6 +84,7 @@ jobs:
       AWS_REGION: ${{ inputs.aws_region }}
       ENVIRONMENT: ${{ (github.ref_name == 'main' || github.ref_name == 'prod') && 'prod' || 'dev' }}
       IMAGE_TAG: ${{ github.sha }}
+      CACHE_REGISTRY: 476569303677.dkr.ecr.eu-central-1.amazonaws.com/sabahhub/cache/buildkit
 
     outputs:
       service_name: ${{ steps.meta.outputs.service_name }}
@@ -199,8 +200,8 @@ jobs:
           tags: |
             ${{ steps.ecr.outputs.registry }}/${{ steps.ecr_repo.outputs.ecr_repository }}:${{ env.IMAGE_TAG }}
             ${{ steps.ecr.outputs.registry }}/${{ steps.ecr_repo.outputs.ecr_repository }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=min
+          cache-from: type=registry,ref=${{ env.CACHE_REGISTRY }}:${{ inputs.service_name }}-${{ env.ENVIRONMENT }}
+          cache-to: type=registry,ref=${{ env.CACHE_REGISTRY }}:${{ inputs.service_name }}-${{ env.ENVIRONMENT }},mode=max
 
       - name: Export outputs
         id: meta
