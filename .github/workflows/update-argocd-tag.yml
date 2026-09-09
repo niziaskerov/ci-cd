@@ -25,6 +25,11 @@ on:
         type: string
         default: main
 
+      runner:
+        required: false
+        type: string
+        default: common-runner
+
     secrets:
       ARGOCD_REPO_TOKEN:
         required: true
@@ -34,7 +39,7 @@ permissions:
 
 jobs:
   update:
-    runs-on: common-runner
+    runs-on: ${{ inputs.runner }}
 
     environment: ${{ (github.ref_name == 'main' || github.ref_name == 'eks') && 'prod' || 'dev' }}
 
