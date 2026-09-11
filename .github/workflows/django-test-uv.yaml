@@ -72,6 +72,10 @@ jobs:
       LSIM_SENDER: cisender
       DJANGO_EMAIL_HOST_USER: ci@example.com
       DJANGO_EMAIL_HOST_PASSWORD: ciemailpass
+      AWS_ACCESS_KEY_ID: AKIAIOSFODNN7EXAMPLE
+      AWS_SECRET_ACCESS_KEY: wJalrXUtnFEMIexampleKEY
+      AWS_STORAGE_BUCKET_NAME: ci-test-bucket
+      AWS_S3_REGION_NAME: eu-central-1
 
     steps:
       - uses: actions/checkout@v4
