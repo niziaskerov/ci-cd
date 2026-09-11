@@ -37,7 +37,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -63,7 +63,7 @@ jobs:
       CELERY_RESULT_BACKEND: db+postgresql://postgres:postgres@localhost:5432/${{ inputs.db_name }}
       DJANGO_USE_DOCKER: "0"
       DJANGO_LOGGING_LEVEL: ERROR
-      MASTER_OTP: "000000"
+      MASTER_OTP: "314159"
       PYOTP_SECRET: JBSWY3DPEHPK3PXP
       GLITCHTIP_DSN: ""
       ENVIRONMENT: ci
