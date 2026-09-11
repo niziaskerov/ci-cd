@@ -1,0 +1,91 @@
+name: Django Test UV (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        required: false
+        type: string
+        default: ubuntu-latest
+
+      python_version:
+        required: false
+        type: string
+        default: "3.12"
+
+      django_settings_module:
+        required: false
+        type: string
+        default: config.settings.local
+
+      db_name:
+        required: false
+        type: string
+        default: app
+
+jobs:
+  test:
+    runs-on: ${{ inputs.runner }}
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ${{ inputs.db_name }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DJANGO_SETTINGS_MODULE: ${{ inputs.django_settings_module }}
+      DJANGO_SECRET_KEY: JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PX
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1"
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/${{ inputs.db_name }}
+      DJANGO_REDIS_URL: redis://localhost:6379
+      CELERY_BROKER_URL: redis://localhost:6379/0
+      CELERY_RESULT_BACKEND: db+postgresql://postgres:postgres@localhost:5432/${{ inputs.db_name }}
+      DJANGO_USE_DOCKER: "0"
+      DJANGO_LOGGING_LEVEL: ERROR
+      MASTER_OTP: "000000"
+      PYOTP_SECRET: JBSWY3DPEHPK3PXP
+      GLITCHTIP_DSN: ""
+      ENVIRONMENT: ci
+      LSIM_LOGIN: cilsim
+      LSIM_PASSWORD: cilsim
+      LSIM_SENDER: cisender
+      DJANGO_EMAIL_HOST_USER: ci@example.com
+      DJANGO_EMAIL_HOST_PASSWORD: ciemailpass
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ inputs.python_version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Run tests
+        run: uv run python manage.py test
