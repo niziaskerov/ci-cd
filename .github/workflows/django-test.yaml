@@ -1,0 +1,98 @@
+name: Django Test (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        required: false
+        type: string
+        default: ubuntu-latest
+
+      python_version:
+        required: false
+        type: string
+        default: "3.11"
+
+      requirements_file:
+        required: false
+        type: string
+        default: requirements/local.txt
+
+      django_settings_module:
+        required: false
+        type: string
+        default: config.settings.local
+
+jobs:
+  test:
+    runs-on: ${{ inputs.runner }}
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: loyalty
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DJANGO_SETTINGS_MODULE: ${{ inputs.django_settings_module }}
+      DJANGO_SECRET_KEY: ci-test-secret-key-not-for-production
+      DJANGO_DEBUG: "1"
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1"
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/loyalty
+      DJANGO_REDIS_URL: redis://localhost:6379
+      CELERY_BROKER_URL: redis://localhost:6379/0
+      CELERY_RESULT_BACKEND: "db+postgresql://postgres:postgres@localhost:5432/loyalty"
+      DJANGO_USE_DOCKER: "0"
+      DJANGO_LOGGING_LEVEL: ERROR
+      MASTER_OTP: "000000"
+      MASTER_OTP_SECRET: ci-otp-secret
+      PYOTP_SECRET: ci-pyotp-secret
+      KAPITAL_USERNAME: ci-kapital
+      KAPITAL_PASSWORD: ci-kapital
+      KAPITAL_BASE_URL: https://e-commerce.kapitalbank.az/api
+      KAPITAL_REDIRECT_URL: https://localhost/redirect
+      GLITCHTIP_DSN: ""
+      ENVIRONMENT: ci
+      LSIM_LOGIN: ci-lsim
+      LSIM_PASSWORD: ci-lsim
+      LSIM_SENDER: ci-sender
+      DJANGO_EMAIL_HOST_USER: ci@example.com
+      DJANGO_EMAIL_HOST_PASSWORD: ci-email-pass
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ inputs.python_version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          cache: pip
+          cache-dependency-path: ${{ inputs.requirements_file }}
+
+      - name: Create .envs directory
+        run: mkdir -p .envs/.local && touch .envs/.local/.django .envs/.local/.postgres
+
+      - name: Install dependencies
+        run: pip install -r ${{ inputs.requirements_file }}
+
+      - name: Run tests
+        run: python manage.py test
