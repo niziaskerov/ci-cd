@@ -54,7 +54,7 @@ jobs:
 
     env:
       DJANGO_SETTINGS_MODULE: ${{ inputs.django_settings_module }}
-      DJANGO_SECRET_KEY: ci-test-secret-key-not-for-production
+      DJANGO_SECRET_KEY: JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PX
       DJANGO_DEBUG: "1"
       DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1"
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/loyalty
@@ -64,19 +64,19 @@ jobs:
       DJANGO_USE_DOCKER: "0"
       DJANGO_LOGGING_LEVEL: ERROR
       MASTER_OTP: "000000"
-      MASTER_OTP_SECRET: ci-otp-secret
-      PYOTP_SECRET: ci-pyotp-secret
-      KAPITAL_USERNAME: ci-kapital
-      KAPITAL_PASSWORD: ci-kapital
+      MASTER_OTP_SECRET: JBSWY3DPEHPK3PXP
+      PYOTP_SECRET: JBSWY3DPEHPK3PXP
+      KAPITAL_USERNAME: cikapital
+      KAPITAL_PASSWORD: cikapital
       KAPITAL_BASE_URL: https://e-commerce.kapitalbank.az/api
       KAPITAL_REDIRECT_URL: https://localhost/redirect
       GLITCHTIP_DSN: ""
       ENVIRONMENT: ci
-      LSIM_LOGIN: ci-lsim
-      LSIM_PASSWORD: ci-lsim
-      LSIM_SENDER: ci-sender
+      LSIM_LOGIN: cilsim
+      LSIM_PASSWORD: cilsim
+      LSIM_SENDER: cisender
       DJANGO_EMAIL_HOST_USER: ci@example.com
-      DJANGO_EMAIL_HOST_PASSWORD: ci-email-pass
+      DJANGO_EMAIL_HOST_PASSWORD: ciemailpass
 
     steps:
       - uses: actions/checkout@v4
