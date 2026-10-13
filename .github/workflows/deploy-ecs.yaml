@@ -84,4 +84,12 @@ jobs:
         run: |
           aws ecs wait services-stable \
             --cluster ${{ inputs.cluster }} \
-            --services ${{ inputs.service_name }}
+            --services ${{ inputs.service_name }} || {
+            echo "::error::Deployment failed. Last ECS service events:"
+            aws ecs describe-services \
+              --cluster ${{ inputs.cluster }} \
+              --services ${{ inputs.service_name }} \
+              --query 'services[0].events[:5].[createdAt,message]' \
+              --output text
+            exit 1
+          }
