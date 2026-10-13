@@ -61,10 +61,30 @@ jobs:
             --query taskDefinition \
             --output json)
 
+          # Extract the secret ARN from the first secrets entry (strip the :KEY:: suffix)
+          SECRET_ARN=$(echo "$TASK_DEF" | jq -r '
+            .containerDefinitions[0].secrets[0].valueFrom
+            | split(":")[:-3]
+            | join(":")
+          ')
+
+          # Build secrets array dynamically from all keys currently in the secret
+          NEW_SECRETS=$(aws secretsmanager get-secret-value \
+            --secret-id "$SECRET_ARN" \
+            --query SecretString \
+            --output text | jq -r --arg arn "$SECRET_ARN" '
+              to_entries | map({name: .key, valueFrom: ($arn + ":" + .key + "::")})
+            ')
+
           NEW_TASK_DEF=$(echo "$TASK_DEF" | jq \
             --arg IMAGE "${{ inputs.image_uri }}" \
-            --arg CONTAINER "$CONTAINER" '
-            .containerDefinitions |= map(if .name == $CONTAINER then .image = $IMAGE else . end)
+            --arg CONTAINER "$CONTAINER" \
+            --argjson SECRETS "$NEW_SECRETS" '
+            .containerDefinitions |= map(
+              if .name == $CONTAINER then
+                .image = $IMAGE | .secrets = $SECRETS
+              else . end
+            )
             | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
           ')
 
