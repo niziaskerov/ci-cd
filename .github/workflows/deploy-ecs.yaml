@@ -61,32 +61,48 @@ jobs:
             --query taskDefinition \
             --output json)
 
-          # Extract the secret ARN from the first secrets entry (strip the :KEY:: suffix)
-          SECRET_ARN=$(echo "$TASK_DEF" | jq -r '
-            .containerDefinitions[0].secrets[0].valueFrom
-            | split(":")[:-3]
-            | join(":")
+          # If the task definition has secrets, rebuild the array dynamically
+          # from all keys currently in the secret so no manual task def edits are needed
+          HAS_SECRETS=$(echo "$TASK_DEF" | jq -r '
+            if (.containerDefinitions[0].secrets // []) | length > 0
+            then "true" else "false" end
           ')
 
-          # Build secrets array dynamically from all keys currently in the secret
-          NEW_SECRETS=$(aws secretsmanager get-secret-value \
-            --secret-id "$SECRET_ARN" \
-            --query SecretString \
-            --output text | jq -r --arg arn "$SECRET_ARN" '
-              to_entries | map({name: .key, valueFrom: ($arn + ":" + .key + "::")})
+          if [ "$HAS_SECRETS" = "true" ]; then
+            SECRET_ARN=$(echo "$TASK_DEF" | jq -r '
+              .containerDefinitions[0].secrets[0].valueFrom
+              | split(":")[:-3]
+              | join(":")
             ')
 
-          NEW_TASK_DEF=$(echo "$TASK_DEF" | jq \
-            --arg IMAGE "${{ inputs.image_uri }}" \
-            --arg CONTAINER "$CONTAINER" \
-            --argjson SECRETS "$NEW_SECRETS" '
-            .containerDefinitions |= map(
-              if .name == $CONTAINER then
-                .image = $IMAGE | .secrets = $SECRETS
-              else . end
-            )
-            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
-          ')
+            NEW_SECRETS=$(aws secretsmanager get-secret-value \
+              --secret-id "$SECRET_ARN" \
+              --query SecretString \
+              --output text | jq -r --arg arn "$SECRET_ARN" '
+                to_entries | map({name: .key, valueFrom: ($arn + ":" + .key + "::")})
+              ')
+
+            NEW_TASK_DEF=$(echo "$TASK_DEF" | jq \
+              --arg IMAGE "${{ inputs.image_uri }}" \
+              --arg CONTAINER "$CONTAINER" \
+              --argjson SECRETS "$NEW_SECRETS" '
+              .containerDefinitions |= map(
+                if .name == $CONTAINER then
+                  .image = $IMAGE | .secrets = $SECRETS
+                else . end
+              )
+              | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+            ')
+          else
+            NEW_TASK_DEF=$(echo "$TASK_DEF" | jq \
+              --arg IMAGE "${{ inputs.image_uri }}" \
+              --arg CONTAINER "$CONTAINER" '
+              .containerDefinitions |= map(
+                if .name == $CONTAINER then .image = $IMAGE else . end
+              )
+              | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
+            ')
+          fi
 
           NEW_REVISION=$(aws ecs register-task-definition \
             --cli-input-json "$NEW_TASK_DEF" \
