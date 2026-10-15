@@ -89,6 +89,8 @@ jobs:
               .containerDefinitions |= map(
                 if .name == $CONTAINER then
                   .image = $IMAGE | .secrets = $SECRETS
+                elif (.secrets // []) | length > 0 then
+                  .secrets = $SECRETS
                 else . end
               )
               | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
