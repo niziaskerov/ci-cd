@@ -44,8 +44,14 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: common-runner
+    runs-on: ubuntu-latest
     steps:
+      - name: Install AWS CLI
+        run: |
+          curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+          unzip -q /tmp/awscliv2.zip -d /tmp
+          sudo /tmp/aws/install --update
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
