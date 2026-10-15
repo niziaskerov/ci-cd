@@ -44,7 +44,7 @@ permissions:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: common-runner
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
