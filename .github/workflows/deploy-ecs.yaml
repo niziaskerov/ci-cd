@@ -97,9 +97,13 @@ jobs:
               --arg IMAGE "${{ inputs.image_uri }}" \
               --arg CONTAINER "$CONTAINER" \
               --argjson SECRETS "$NEW_SECRETS" '
+              ($IMAGE | split("/") | last | split(":") | first) as $IMAGE_NAME |
               .containerDefinitions |= map(
                 if .name == $CONTAINER then
                   .image = $IMAGE | .secrets = $SECRETS
+                elif (.image | split("/") | last | split(":") | first) == $IMAGE_NAME then
+                  .image = $IMAGE
+                  | if ((.secrets // []) | length > 0) then .secrets = $SECRETS else . end
                 elif (.secrets // []) | length > 0 then
                   .secrets = $SECRETS
                 else . end
@@ -110,8 +114,11 @@ jobs:
             NEW_TASK_DEF=$(echo "$TASK_DEF" | jq \
               --arg IMAGE "${{ inputs.image_uri }}" \
               --arg CONTAINER "$CONTAINER" '
+              ($IMAGE | split("/") | last | split(":") | first) as $IMAGE_NAME |
               .containerDefinitions |= map(
-                if .name == $CONTAINER then .image = $IMAGE else . end
+                if .name == $CONTAINER or (.image | split("/") | last | split(":") | first) == $IMAGE_NAME
+                then .image = $IMAGE
+                else . end
               )
               | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)
             ')
